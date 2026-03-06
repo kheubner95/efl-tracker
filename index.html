@@ -251,7 +251,7 @@
   <div class="legend-item"><div class="legend-dot dot-auto"></div> Automatic Promotion (1–2)</div>
   <div class="legend-item"><div class="legend-dot dot-play"></div> Playoffs (3–6)</div>
   <div class="legend-item"><div class="legend-dot dot-mid"></div> Mid-table (7–20)</div>
-  <div class="legend-item"><div class="legend-dot dot-rel"></div> Relegation (21–24)</div>
+  <div class="legend-item"><div class="legend-dot dot-rel"></div> Relegation (22–24)</div>
 </div>
 
 <div id="loading">Loading table data...</div>
@@ -286,7 +286,7 @@
   function zoneClass(pos) {
     if (pos <= 2) return 'zone-auto';
     if (pos <= 6) return 'zone-play';
-    if (pos <= 20) return 'zone-mid';
+    if (pos <= 21) return 'zone-mid';
     return 'zone-rel';
   }
 

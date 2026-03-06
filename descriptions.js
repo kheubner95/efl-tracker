@@ -43,7 +43,7 @@ function generateDescription({ position, points, gamesRemaining, scheduleDifficu
   const p2 = sorted[1]?.points;    // 2nd place points
   const p6 = sorted[5]?.points;    // 6th place points
   const p7 = sorted[6]?.points;    // 7th place
-  const p21 = sorted[20]?.points;  // 21st place
+  const p22 = sorted[21]?.points;  // 22nd place (relegation cutoff)
 
   let sentence1 = '';
   let sentence2 = '';
@@ -88,7 +88,7 @@ function generateDescription({ position, points, gamesRemaining, scheduleDifficu
     } else {
       sentence2 = `Unlikely to threaten the playoffs — expecting a mid-table finish.`;
     }
-  } else if (pos <= 20) {
+  } else if (pos <= 21) {
     // Mid-table
     sentence1 = `${ordinal(pos)} in mid-table`;
     if (gl > 0) sentence1 += ` with ${gl} game${gl !== 1 ? 's' : ''} left`;
@@ -101,10 +101,10 @@ function generateDescription({ position, points, gamesRemaining, scheduleDifficu
     }
   } else {
     // Relegation zone or danger
-    const gapTo21st = p21 !== undefined ? pointsGap(points, p21) : null;
+    const gapTo22nd = p22 !== undefined ? pointsGap(points, p22) : null;
     sentence1 = `${ordinal(pos)}`;
-    if (pos <= 20 && gapTo21st) sentence1 += `, ${gapTo21st} the relegation zone`;
-    else if (pos > 20) sentence1 += ' in the relegation zone';
+    if (pos <= 21 && gapTo22nd) sentence1 += `, ${gapTo22nd} the relegation zone`;
+    else if (pos > 21) sentence1 += ' in the relegation zone';
     if (gl > 0) sentence1 += ` with ${gl} ${diff} game${gl !== 1 ? 's' : ''} remaining`;
     sentence1 += '.';
 

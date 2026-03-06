@@ -152,7 +152,7 @@ function simulate(standings, fixtures) {
       const rank = pos + 1;
       if (rank <= 2) counts.auto[tid]++;
       else if (rank <= 6) counts.playoff[tid]++;
-      else if (rank <= 20) counts.mid[tid]++;
+      else if (rank <= 21) counts.mid[tid]++;
       else counts.rel[tid]++;
     }
   }
