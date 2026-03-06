@@ -55,9 +55,8 @@ async function initDB() {
       )
     `);
 
-    await conn.query(`
-      ALTER TABLE simulation_results ADD COLUMN IF NOT EXISTS expected_points DECIMAL(5,2)
-    `);
+    await conn.query(`ALTER TABLE simulation_results ADD COLUMN expected_points DECIMAL(5,2)`)
+      .catch(err => { if (err.errno !== 1060) throw err; }); // 1060 = column already exists
 
     console.log('Database tables initialized.');
   } finally {
