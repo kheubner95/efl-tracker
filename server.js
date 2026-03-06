@@ -55,7 +55,7 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
       SELECT * FROM fixtures
       WHERE (home_team_id = ? OR away_team_id = ?)
         AND (status = 'SCHEDULED' OR status = 'TIMED')
-      ORDER BY utc_date ASC
+      ORDER BY match_date ASC
     `, [teamId, teamId]);
 
     const strengthMap = {};
@@ -74,7 +74,7 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
         ? matchProbs(myStrength, oppStrength)
         : matchProbs(oppStrength, myStrength);
       return {
-        date: f.utc_date,
+        date: f.match_date,
         opponent: nameMap[oppId] || 'Unknown',
         home_away: isHome ? 'H' : 'A',
         win_pct: (isHome ? h : a) * 100,
