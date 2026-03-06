@@ -55,6 +55,10 @@ async function initDB() {
       )
     `);
 
+    await conn.query(`
+      ALTER TABLE simulation_results ADD COLUMN IF NOT EXISTS expected_points DECIMAL(5,2)
+    `);
+
     console.log('Database tables initialized.');
   } finally {
     conn.release();

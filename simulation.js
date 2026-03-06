@@ -82,6 +82,18 @@ function simulate(standings, fixtures) {
     schedDifficulty[parseInt(id)] = (val - minD) / range;
   }
 
+  // Expected points (deterministic)
+  const expectedPts = {};
+  for (const id of Object.keys(teamMap)) expectedPts[parseInt(id)] = 0;
+  for (const f of remaining) {
+    const hTeam = teamMap[f.home_team_id];
+    const aTeam = teamMap[f.away_team_id];
+    if (!hTeam || !aTeam) continue;
+    const { h, d, a } = matchProbs(hTeam.strength, aTeam.strength);
+    expectedPts[f.home_team_id] += 3 * h + d;
+    expectedPts[f.away_team_id] += 3 * a + d;
+  }
+
   // Monte Carlo
   const counts = { auto: {}, playoff: {}, mid: {}, rel: {} };
   for (const id of Object.keys(teamMap)) {
@@ -195,6 +207,7 @@ function simulate(standings, fixtures) {
       playoff_pct: playPct,
       mid_table_pct: midPct,
       relegation_pct: relPct,
+      expected_points: parseFloat((t.points + (expectedPts[tid] || 0)).toFixed(2)),
       description
     });
   }
@@ -243,8 +256,8 @@ async function run() {
         INSERT INTO simulation_results
           (team_id, team_name, position, played, points, goal_difference,
            games_remaining, schedule_difficulty, auto_promotion_pct, playoff_pct,
-           mid_table_pct, relegation_pct, description)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           mid_table_pct, relegation_pct, expected_points, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           team_name=VALUES(team_name), position=VALUES(position),
           played=VALUES(played), points=VALUES(points),
@@ -255,13 +268,14 @@ async function run() {
           playoff_pct=VALUES(playoff_pct),
           mid_table_pct=VALUES(mid_table_pct),
           relegation_pct=VALUES(relegation_pct),
+          expected_points=VALUES(expected_points),
           description=VALUES(description),
           last_updated=CURRENT_TIMESTAMP
       `, [
         r.team_id, r.team_name, r.position, r.played, r.points,
         r.goal_difference, r.games_remaining, r.schedule_difficulty,
         r.auto_promotion_pct, r.playoff_pct, r.mid_table_pct,
-        r.relegation_pct, r.description
+        r.relegation_pct, r.expected_points, r.description
       ]);
     }
     console.log(`[simulation] Saved ${results.length} simulation results.`);

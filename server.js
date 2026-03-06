@@ -73,13 +73,15 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
       const { h, d, a } = isHome
         ? matchProbs(myStrength, oppStrength)
         : matchProbs(oppStrength, myStrength);
+      const winProb = isHome ? h : a;
       return {
         date: f.match_date,
         opponent: nameMap[oppId] || 'Unknown',
         home_away: isHome ? 'H' : 'A',
-        win_pct: (isHome ? h : a) * 100,
+        win_pct: winProb * 100,
         draw_pct: d * 100,
-        loss_pct: (isHome ? a : h) * 100
+        loss_pct: (isHome ? a : h) * 100,
+        xpts: (3 * winProb + d).toFixed(2)
       };
     });
 

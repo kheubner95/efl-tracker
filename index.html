@@ -259,6 +259,7 @@
     .fx-win  { color: #4ade80; font-weight: 600; }
     .fx-draw { color: #facc15; font-weight: 600; }
     .fx-loss { color: #f87171; font-weight: 600; }
+    .fx-xpts { color: #c084fc; font-weight: 600; }
 
     .fixture-spinner, .fixture-empty {
       padding: 8px 0;
@@ -330,6 +331,7 @@
         <th class="num">Pts</th>
         <th class="num">GD</th>
         <th class="num">Left</th>
+        <th class="num">xPts</th>
         <th class="num">Auto%</th>
         <th class="num">Playoff%</th>
         <th class="num">Rel%</th>
@@ -394,7 +396,7 @@
     let html = `<table class="fixture-table">
       <thead><tr>
         <th>Date</th><th>Opponent</th><th>H/A</th>
-        <th class="num">Win%</th><th class="num">Draw%</th><th class="num">Loss%</th>
+        <th class="num">Win%</th><th class="num">Draw%</th><th class="num">Loss%</th><th class="num">xPts</th>
       </tr></thead><tbody>`;
     for (const f of data) {
       const d = f.date ? new Date(f.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
@@ -406,6 +408,7 @@
         <td class="num fx-win">${parseFloat(f.win_pct).toFixed(1)}%</td>
         <td class="num fx-draw">${parseFloat(f.draw_pct).toFixed(1)}%</td>
         <td class="num fx-loss">${parseFloat(f.loss_pct).toFixed(1)}%</td>
+        <td class="num fx-xpts">${f.xpts}</td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -441,6 +444,7 @@
         <td class="num">${r.points}</td>
         <td class="num">${r.goal_difference >= 0 ? '+' : ''}${r.goal_difference}</td>
         <td class="num">${r.games_remaining}</td>
+        <td class="num">${r.expected_points != null ? parseFloat(r.expected_points).toFixed(1) : '—'}</td>
         <td class="num pct-cell ${pctClass(r.auto_promotion_pct, 'auto')}">${fmt(r.auto_promotion_pct)}</td>
         <td class="num pct-cell ${pctClass(r.playoff_pct, 'playoff')}">${fmt(r.playoff_pct)}</td>
         <td class="num pct-cell ${pctClass(r.relegation_pct, 'rel')}">${fmt(r.relegation_pct)}</td>
@@ -450,14 +454,14 @@
       if (r.description) {
         const descRow = document.createElement('tr');
         descRow.className = `desc-row ${zone}`;
-        descRow.innerHTML = `<td colspan="9">${escHtml(r.description)}</td>`;
+        descRow.innerHTML = `<td colspan="10">${escHtml(r.description)}</td>`;
         tbody.appendChild(descRow);
       }
 
       const fixtureRow = document.createElement('tr');
       fixtureRow.className = `fixture-row ${zone} hidden`;
       fixtureRow.dataset.teamId = r.team_id;
-      fixtureRow.innerHTML = `<td colspan="9"><div class="fixture-panel"></div></td>`;
+      fixtureRow.innerHTML = `<td colspan="10"><div class="fixture-panel"></div></td>`;
       tbody.appendChild(fixtureRow);
 
       teamRow.addEventListener('click', () => {
@@ -504,6 +508,7 @@
           <span>Pts <strong>${r.points}</strong></span>
           <span>GD <strong>${gdStr}</strong></span>
           <span>Left <strong>${r.games_remaining}</strong></span>
+          <span>xPts <strong>${r.expected_points != null ? parseFloat(r.expected_points).toFixed(1) : '—'}</strong></span>
         </div>
         <div class="card-pills">
           <span class="pill pill-auto">🔵 Auto ${fmt(r.auto_promotion_pct)}</span>
