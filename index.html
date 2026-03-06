@@ -70,8 +70,9 @@
 
     /* ========== DESKTOP TABLE ========== */
     .table-wrap {
-      overflow-x: auto;
+      overflow: auto;
       padding: 20px 24px;
+      max-height: calc(100vh - 110px);
     }
 
     table {
@@ -88,6 +89,10 @@
       letter-spacing: 0.05em;
       color: #666;
       border-bottom: 1px solid #2a2d3a;
+      position: sticky;
+      top: 0;
+      background: #0f1117;
+      z-index: 1;
     }
 
     thead th.num { text-align: right; }
