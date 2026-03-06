@@ -272,4 +272,4 @@ async function run() {
   return results;
 }
 
-module.exports = { run };
+module.exports = { run, computeStrength, matchProbs };

@@ -215,6 +215,68 @@
 
     .card.expanded .card-desc { display: block; }
 
+    /* ========== FIXTURE PANEL ========== */
+    tbody tr.fixture-row td {
+      padding: 0 12px 12px 52px;
+      border-bottom: 1px solid #1e2130;
+    }
+
+    tbody tr.fixture-row.hidden { display: none; }
+
+    .team-row { cursor: pointer; }
+
+    .fixture-panel { font-size: 0.8rem; }
+
+    .fixture-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 4px;
+    }
+
+    .fixture-table th {
+      text-align: left;
+      padding: 4px 8px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #555;
+      border-bottom: 1px solid #2a2d3a;
+    }
+
+    .fixture-table th.num { text-align: right; }
+
+    .fixture-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #1a1d27;
+      color: #ccc;
+    }
+
+    .fixture-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .ha-home { color: #7baff5; font-weight: 600; }
+    .ha-away { color: #f9a825; font-weight: 600; }
+
+    .fx-win  { color: #4ade80; font-weight: 600; }
+    .fx-draw { color: #facc15; font-weight: 600; }
+    .fx-loss { color: #f87171; font-weight: 600; }
+
+    .fixture-spinner, .fixture-empty {
+      padding: 8px 0;
+      color: #666;
+      font-style: italic;
+    }
+
+    /* Mobile fixture list inside card */
+    .card-fixtures {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .card.expanded .card-fixtures { display: block; }
+
+    .card-fixtures .fixture-table th,
+    .card-fixtures .fixture-table td { padding: 4px 6px; }
+
     /* ========== LOADING / ERROR ========== */
     #loading {
       text-align: center;
@@ -250,7 +312,7 @@
 <div class="legend">
   <div class="legend-item"><div class="legend-dot dot-auto"></div> Automatic Promotion (1–2)</div>
   <div class="legend-item"><div class="legend-dot dot-play"></div> Playoffs (3–6)</div>
-  <div class="legend-item"><div class="legend-dot dot-mid"></div> Mid-table (7–20)</div>
+  <div class="legend-item"><div class="legend-dot dot-mid"></div> Mid-table (7–21)</div>
   <div class="legend-item"><div class="legend-dot dot-rel"></div> Relegation (22–24)</div>
 </div>
 
@@ -282,6 +344,7 @@
 
 <script>
   const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+  let expandedTeamId = null;
 
   function zoneClass(pos) {
     if (pos <= 2) return 'zone-auto';
@@ -293,7 +356,7 @@
   function badgeClass(pos) {
     if (pos <= 2) return 'badge-auto';
     if (pos <= 6) return 'badge-play';
-    if (pos <= 20) return 'badge-mid';
+    if (pos <= 21) return 'badge-mid';
     return 'badge-rel';
   }
 
@@ -326,15 +389,51 @@
     return `Updated ${Math.floor(diff / 3600)}h ago`;
   }
 
+  function buildFixtureHtml(data) {
+    if (!data.length) return '<div class="fixture-empty">No remaining fixtures.</div>';
+    let html = `<table class="fixture-table">
+      <thead><tr>
+        <th>Date</th><th>Opponent</th><th>H/A</th>
+        <th class="num">Win%</th><th class="num">Draw%</th><th class="num">Loss%</th>
+      </tr></thead><tbody>`;
+    for (const f of data) {
+      const d = f.date ? new Date(f.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+      const ha = f.home_away === 'H' ? '<span class="ha-home">H</span>' : '<span class="ha-away">A</span>';
+      html += `<tr>
+        <td>${d}</td>
+        <td>${escHtml(f.opponent)}</td>
+        <td>${ha}</td>
+        <td class="num fx-win">${parseFloat(f.win_pct).toFixed(1)}%</td>
+        <td class="num fx-draw">${parseFloat(f.draw_pct).toFixed(1)}%</td>
+        <td class="num fx-loss">${parseFloat(f.loss_pct).toFixed(1)}%</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    return html;
+  }
+
+  function fetchFixtures(teamId, panelEl) {
+    panelEl.innerHTML = '<div class="fixture-spinner">Loading fixtures…</div>';
+    fetch(`/api/fixtures/${teamId}`)
+      .then(r => r.json())
+      .then(json => {
+        panelEl.innerHTML = json.ok ? buildFixtureHtml(json.data) : '<div class="fixture-empty">Failed to load fixtures.</div>';
+      })
+      .catch(() => { panelEl.innerHTML = '<div class="fixture-empty">Failed to load fixtures.</div>'; });
+  }
+
   function renderDesktop(rows) {
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
+    expandedTeamId = null;
+
     for (const r of rows) {
       const zone = zoneClass(r.position);
       const badge = badgeClass(r.position);
 
       const teamRow = document.createElement('tr');
       teamRow.className = `team-row ${zone}`;
+      teamRow.dataset.teamId = r.team_id;
       teamRow.innerHTML = `
         <td><span class="pos-badge ${badge}">${r.position}</span></td>
         <td><span class="team-name">${escHtml(r.team_name)}</span></td>
@@ -354,12 +453,40 @@
         descRow.innerHTML = `<td colspan="9">${escHtml(r.description)}</td>`;
         tbody.appendChild(descRow);
       }
+
+      const fixtureRow = document.createElement('tr');
+      fixtureRow.className = `fixture-row ${zone} hidden`;
+      fixtureRow.dataset.teamId = r.team_id;
+      fixtureRow.innerHTML = `<td colspan="9"><div class="fixture-panel"></div></td>`;
+      tbody.appendChild(fixtureRow);
+
+      teamRow.addEventListener('click', () => {
+        const tid = r.team_id;
+        const panel = fixtureRow.querySelector('.fixture-panel');
+
+        if (expandedTeamId === tid) {
+          // Collapse
+          fixtureRow.classList.add('hidden');
+          expandedTeamId = null;
+        } else {
+          // Collapse any previously open row
+          if (expandedTeamId !== null) {
+            const prev = tbody.querySelector(`.fixture-row[data-team-id="${expandedTeamId}"]`);
+            if (prev) prev.classList.add('hidden');
+          }
+          fixtureRow.classList.remove('hidden');
+          expandedTeamId = tid;
+          fetchFixtures(tid, panel);
+        }
+      });
     }
   }
 
   function renderMobile(rows) {
     const wrap = document.getElementById('cards-wrap');
     wrap.innerHTML = '';
+    let expandedCardTeamId = null;
+
     for (const r of rows) {
       const zone = zoneClass(r.position);
       const badge = badgeClass(r.position);
@@ -384,8 +511,29 @@
           <span class="pill pill-rel">🔴 Rel ${fmt(r.relegation_pct)}</span>
         </div>
         ${r.description ? `<div class="card-desc">${escHtml(r.description)}</div>` : ''}
+        <div class="card-fixtures"></div>
       `;
-      card.addEventListener('click', () => card.classList.toggle('expanded'));
+
+      card.addEventListener('click', () => {
+        const tid = r.team_id;
+        const fixturesEl = card.querySelector('.card-fixtures');
+        const isExpanding = !card.classList.contains('expanded');
+
+        // Collapse all other cards
+        wrap.querySelectorAll('.card.expanded').forEach(c => {
+          if (c !== card) c.classList.remove('expanded');
+        });
+
+        card.classList.toggle('expanded');
+
+        if (isExpanding && expandedCardTeamId !== tid) {
+          expandedCardTeamId = tid;
+          fetchFixtures(tid, fixturesEl);
+        } else if (!card.classList.contains('expanded')) {
+          expandedCardTeamId = null;
+        }
+      });
+
       wrap.appendChild(card);
     }
   }
