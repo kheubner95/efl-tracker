@@ -8,13 +8,38 @@ const BASE_DRAW = 0.26;
 const BASE_AWAY = 0.30;
 
 function computeStrength(team) {
-  // Weighted: 50% pts/game, 25% goals scored/game, 25% goals conceded/game (inverted)
   const played = team.played || 1;
-  const ppg = team.points / played;
+  // Use earned PPG (wins×3 + draws) to ignore points deductions
+  const earnedPpg = ((team.won || 0) * 3 + (team.drawn || 0)) / played;
   const gfpg = team.goals_for / played;
   const gapg = team.goals_against / played;
-  // Higher = stronger; less goals conceded is better, so we invert by using 3 - gapg
-  return (ppg / 3) * 0.5 + (gfpg / 3) * 0.25 + ((3 - gapg) / 3) * 0.25;
+  const seasonStrength = (earnedPpg / 3) * 0.5 + (gfpg / 3) * 0.25 + ((3 - gapg) / 3) * 0.25;
+
+  // Blend with last-5 form (30% weight)
+  let formStrength = seasonStrength;
+  if (team.form) {
+    const results = team.form.replace(/,/g, '').split('');
+    const fPlayed = results.length || 1;
+    const fW = results.filter(r => r === 'W').length;
+    const fD = results.filter(r => r === 'D').length;
+    formStrength = ((fW * 3 + fD) / fPlayed) / 3;
+  }
+
+  return seasonStrength * 0.7 + formStrength * 0.3;
+}
+
+function computeContextStrength(stats) {
+  const played = stats.played || 1;
+  const earnedPpg = (stats.won * 3 + stats.drawn) / played;
+  const gfpg = stats.goals_for / played;
+  const gapg = stats.goals_against / played;
+  return (earnedPpg / 3) * 0.5 + (gfpg / 3) * 0.25 + ((3 - gapg) / 3) * 0.25;
+}
+
+function blendStrength(seasonStr, contextStats) {
+  if (!contextStats || contextStats.played < 3) return seasonStr;
+  const ctxStr = computeContextStrength(contextStats);
+  return ctxStr * 0.6 + seasonStr * 0.4;
 }
 
 function matchProbs(homeStrength, awayStrength) {
@@ -39,11 +64,45 @@ function simulate(standings, fixtures) {
       goals_against: t.goals_against,
       goal_difference: t.goal_difference,
       played: t.played,
+      form: t.form,
       strength: computeStrength(t)
     };
   }
 
   const remaining = fixtures.filter(f => f.status === 'SCHEDULED' || f.status === 'TIMED');
+
+  // Build home/away stat records from finished fixtures
+  const homeStats = {};
+  const awayStats = {};
+  for (const id of Object.keys(teamMap)) {
+    homeStats[parseInt(id)] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
+    awayStats[parseInt(id)] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
+  }
+  for (const f of fixtures.filter(fx => fx.status === 'FINISHED' && fx.home_score != null)) {
+    const h = f.home_team_id, a = f.away_team_id;
+    if (homeStats[h]) {
+      homeStats[h].played++;
+      homeStats[h].goals_for += f.home_score;
+      homeStats[h].goals_against += f.away_score;
+      if (f.home_score > f.away_score) homeStats[h].won++;
+      else if (f.home_score === f.away_score) homeStats[h].drawn++;
+    }
+    if (awayStats[a]) {
+      awayStats[a].played++;
+      awayStats[a].goals_for += f.away_score;
+      awayStats[a].goals_against += f.home_score;
+      if (f.away_score > f.home_score) awayStats[a].won++;
+      else if (f.away_score === f.home_score) awayStats[a].drawn++;
+    }
+  }
+
+  // Attach home/away blended strength to each team
+  for (const t of standings) {
+    const tid = t.team_id;
+    const s = teamMap[tid].strength;
+    teamMap[tid].homeStrength = blendStrength(s, homeStats[tid]);
+    teamMap[tid].awayStrength = blendStrength(s, awayStats[tid]);
+  }
 
   // Games remaining per team
   const gamesLeft = {};
@@ -89,7 +148,7 @@ function simulate(standings, fixtures) {
     const hTeam = teamMap[f.home_team_id];
     const aTeam = teamMap[f.away_team_id];
     if (!hTeam || !aTeam) continue;
-    const { h, d, a } = matchProbs(hTeam.strength, aTeam.strength);
+    const { h, d, a } = matchProbs(hTeam.homeStrength, aTeam.awayStrength);
     expectedPts[f.home_team_id] += 3 * h + d;
     expectedPts[f.away_team_id] += 3 * a + d;
   }
@@ -122,7 +181,7 @@ function simulate(standings, fixtures) {
       const aTeam = teamMap[f.away_team_id];
       if (!hTeam || !aTeam) continue;
 
-      const { h, d, a } = matchProbs(hTeam.strength, aTeam.strength);
+      const { h, d, a } = matchProbs(hTeam.homeStrength, aTeam.awayStrength);
       const r = Math.random();
 
       if (r < h) {
@@ -286,4 +345,4 @@ async function run() {
   return results;
 }
 
-module.exports = { run, computeStrength, matchProbs };
+module.exports = { run, computeStrength, computeContextStrength, blendStrength, matchProbs };

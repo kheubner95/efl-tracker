@@ -3,7 +3,7 @@ const express = require('express');
 const path = require('path');
 const { pool, initDB } = require('./db');
 const { start: startScheduler } = require('./scheduler');
-const { computeStrength, matchProbs } = require('./simulation');
+const { computeStrength, computeContextStrength, blendStrength, matchProbs } = require('./simulation');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -51,28 +51,63 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
       ) latest ON s.team_id = latest.team_id AND s.scraped_at = latest.max_at
     `);
 
-    const [fixtures] = await pool.query(`
+    const [remainingFixtures] = await pool.query(`
       SELECT * FROM fixtures
       WHERE (home_team_id = ? OR away_team_id = ?)
         AND (status = 'SCHEDULED' OR status = 'TIMED')
       ORDER BY match_date ASC
     `, [teamId, teamId]);
 
-    const strengthMap = {};
+    const [finishedFixtures] = await pool.query(`
+      SELECT * FROM fixtures WHERE status = 'FINISHED' AND home_score IS NOT NULL
+    `);
+
+    // Build season strength + home/away context strength per team
+    const homeStats = {};
+    const awayStats = {};
+    const seasonStrengthMap = {};
     const nameMap = {};
     for (const t of standings) {
-      strengthMap[t.team_id] = computeStrength(t);
+      seasonStrengthMap[t.team_id] = computeStrength(t);
       nameMap[t.team_id] = t.team_name;
+      homeStats[t.team_id] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
+      awayStats[t.team_id] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
+    }
+    for (const f of finishedFixtures) {
+      const h = f.home_team_id, a = f.away_team_id;
+      if (homeStats[h]) {
+        homeStats[h].played++;
+        homeStats[h].goals_for += f.home_score;
+        homeStats[h].goals_against += f.away_score;
+        if (f.home_score > f.away_score) homeStats[h].won++;
+        else if (f.home_score === f.away_score) homeStats[h].drawn++;
+      }
+      if (awayStats[a]) {
+        awayStats[a].played++;
+        awayStats[a].goals_for += f.away_score;
+        awayStats[a].goals_against += f.home_score;
+        if (f.away_score > f.home_score) awayStats[a].won++;
+        else if (f.away_score === f.home_score) awayStats[a].drawn++;
+      }
+    }
+    const homeStrengthMap = {};
+    const awayStrengthMap = {};
+    for (const t of standings) {
+      const s = seasonStrengthMap[t.team_id];
+      homeStrengthMap[t.team_id] = blendStrength(s, homeStats[t.team_id]);
+      awayStrengthMap[t.team_id] = blendStrength(s, awayStats[t.team_id]);
     }
 
-    const myStrength = strengthMap[teamId] || 0.5;
-    const data = fixtures.map(f => {
+    const data = remainingFixtures.map(f => {
       const isHome = f.home_team_id === teamId;
       const oppId = isHome ? f.away_team_id : f.home_team_id;
-      const oppStrength = strengthMap[oppId] || 0.5;
+      const myH = homeStrengthMap[teamId] || 0.5;
+      const myA = awayStrengthMap[teamId] || 0.5;
+      const oppH = homeStrengthMap[oppId] || 0.5;
+      const oppA = awayStrengthMap[oppId] || 0.5;
       const { h, d, a } = isHome
-        ? matchProbs(myStrength, oppStrength)
-        : matchProbs(oppStrength, myStrength);
+        ? matchProbs(myH, oppA)
+        : matchProbs(oppH, myA);
       const winProb = isHome ? h : a;
       return {
         date: f.match_date,
