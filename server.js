@@ -4,6 +4,7 @@ const path = require('path');
 const { pool, initDB } = require('./db');
 const { start: startScheduler } = require('./scheduler');
 const { computeStrength, computeContextStrength, blendStrength, matchProbs } = require('./simulation');
+const { computeEloRatings } = require('./elo');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -90,6 +91,18 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
         else if (f.away_score === f.home_score) awayStats[a].drawn++;
       }
     }
+    // Blend Elo into season strength before computing home/away maps
+    const eloRatings = computeEloRatings(finishedFixtures);
+    const eloVals = Object.values(eloRatings);
+    const eloMin = Math.min(...eloVals);
+    const eloMax = Math.max(...eloVals);
+    const eloRange = eloMax - eloMin || 1;
+    for (const t of standings) {
+      const tid = t.team_id;
+      const es = eloRatings[tid] != null ? (eloRatings[tid] - eloMin) / eloRange : 0.5;
+      seasonStrengthMap[tid] = seasonStrengthMap[tid] * 0.4 + es * 0.6;
+    }
+
     const homeStrengthMap = {};
     const awayStrengthMap = {};
     for (const t of standings) {

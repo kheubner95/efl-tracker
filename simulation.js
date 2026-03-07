@@ -1,5 +1,6 @@
 const { pool } = require('./db');
 const { generateDescription } = require('./descriptions');
+const { computeEloRatings, BASE_ELO } = require('./elo');
 
 const ITERATIONS = 10000;
 // Championship base rates (home win ~44%, draw ~26%, away win ~30%)
@@ -67,6 +68,27 @@ function simulate(standings, fixtures) {
       form: t.form,
       strength: computeStrength(t)
     };
+  }
+
+  // Compute Elo ratings from finished fixture history
+  const eloRatings = computeEloRatings(fixtures);
+
+  // Normalize Elo to 0–1 across all teams
+  const eloVals = Object.values(eloRatings);
+  const eloMin = Math.min(...eloVals);
+  const eloMax = Math.max(...eloVals);
+  const eloRange = eloMax - eloMin || 1;
+  const eloStrength = {};
+  for (const [id, rating] of Object.entries(eloRatings)) {
+    eloStrength[parseInt(id)] = (rating - eloMin) / eloRange;
+  }
+
+  // Blend Elo (60%) into each team's formula-based strength
+  for (const t of standings) {
+    const tid = t.team_id;
+    const es = eloStrength[tid] ?? 0.5;
+    teamMap[tid].strength = teamMap[tid].strength * 0.4 + es * 0.6;
+    teamMap[tid].eloRating = Math.round(eloRatings[tid] ?? BASE_ELO);
   }
 
   const remaining = fixtures.filter(f => f.status === 'SCHEDULED' || f.status === 'TIMED');
@@ -267,6 +289,7 @@ function simulate(standings, fixtures) {
       mid_table_pct: midPct,
       relegation_pct: relPct,
       expected_points: parseFloat((t.points + (expectedPts[tid] || 0)).toFixed(2)),
+      elo_rating: teamMap[tid].eloRating || BASE_ELO,
       description
     });
   }
@@ -315,8 +338,8 @@ async function run() {
         INSERT INTO simulation_results
           (team_id, team_name, position, played, points, goal_difference,
            games_remaining, schedule_difficulty, auto_promotion_pct, playoff_pct,
-           mid_table_pct, relegation_pct, expected_points, description)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           mid_table_pct, relegation_pct, expected_points, elo_rating, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           team_name=VALUES(team_name), position=VALUES(position),
           played=VALUES(played), points=VALUES(points),
@@ -328,13 +351,14 @@ async function run() {
           mid_table_pct=VALUES(mid_table_pct),
           relegation_pct=VALUES(relegation_pct),
           expected_points=VALUES(expected_points),
+          elo_rating=VALUES(elo_rating),
           description=VALUES(description),
           last_updated=CURRENT_TIMESTAMP
       `, [
         r.team_id, r.team_name, r.position, r.played, r.points,
         r.goal_difference, r.games_remaining, r.schedule_difficulty,
         r.auto_promotion_pct, r.playoff_pct, r.mid_table_pct,
-        r.relegation_pct, r.expected_points, r.description
+        r.relegation_pct, r.expected_points, r.elo_rating, r.description
       ]);
     }
     console.log(`[simulation] Saved ${results.length} simulation results.`);

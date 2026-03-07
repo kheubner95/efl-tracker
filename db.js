@@ -58,6 +58,9 @@ async function initDB() {
     await conn.query(`ALTER TABLE simulation_results ADD COLUMN expected_points DECIMAL(5,2)`)
       .catch(err => { if (err.errno !== 1060) throw err; }); // 1060 = column already exists
 
+    await conn.query(`ALTER TABLE simulation_results ADD COLUMN elo_rating DECIMAL(7,2)`)
+      .catch(err => { if (err.errno !== 1060) throw err; });
+
     console.log('Database tables initialized.');
   } finally {
     conn.release();
