@@ -337,6 +337,7 @@
         <th class="num">GD</th>
         <th class="num">Left</th>
         <th class="num">xPts</th>
+        <th class="num">Elo</th>
         <th class="num">Auto%</th>
         <th class="num">Playoff%</th>
         <th class="num">Rel%</th>
@@ -450,6 +451,7 @@
         <td class="num">${r.goal_difference >= 0 ? '+' : ''}${r.goal_difference}</td>
         <td class="num">${r.games_remaining}</td>
         <td class="num">${r.expected_points != null ? parseFloat(r.expected_points).toFixed(1) : '—'}</td>
+        <td class="num">${r.elo_rating != null ? Math.round(r.elo_rating) : '—'}</td>
         <td class="num pct-cell ${pctClass(r.auto_promotion_pct, 'auto')}">${fmt(r.auto_promotion_pct)}</td>
         <td class="num pct-cell ${pctClass(r.playoff_pct, 'playoff')}">${fmt(r.playoff_pct)}</td>
         <td class="num pct-cell ${pctClass(r.relegation_pct, 'rel')}">${fmt(r.relegation_pct)}</td>
@@ -459,14 +461,14 @@
       if (r.description) {
         const descRow = document.createElement('tr');
         descRow.className = `desc-row ${zone}`;
-        descRow.innerHTML = `<td colspan="10">${escHtml(r.description)}</td>`;
+        descRow.innerHTML = `<td colspan="11">${escHtml(r.description)}</td>`;
         tbody.appendChild(descRow);
       }
 
       const fixtureRow = document.createElement('tr');
       fixtureRow.className = `fixture-row ${zone} hidden`;
       fixtureRow.dataset.teamId = r.team_id;
-      fixtureRow.innerHTML = `<td colspan="10"><div class="fixture-panel"></div></td>`;
+      fixtureRow.innerHTML = `<td colspan="11"><div class="fixture-panel"></div></td>`;
       tbody.appendChild(fixtureRow);
 
       teamRow.addEventListener('click', () => {
@@ -514,6 +516,7 @@
           <span>GD <strong>${gdStr}</strong></span>
           <span>Left <strong>${r.games_remaining}</strong></span>
           <span>xPts <strong>${r.expected_points != null ? parseFloat(r.expected_points).toFixed(1) : '—'}</strong></span>
+          <span>Elo <strong>${r.elo_rating != null ? Math.round(r.elo_rating) : '—'}</strong></span>
         </div>
         <div class="card-pills">
           <span class="pill pill-auto">🔵 Auto ${fmt(r.auto_promotion_pct)}</span>
