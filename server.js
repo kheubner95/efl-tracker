@@ -55,7 +55,8 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
     const [remainingFixtures] = await pool.query(`
       SELECT * FROM fixtures
       WHERE (home_team_id = ? OR away_team_id = ?)
-        AND (status = 'SCHEDULED' OR status = 'TIMED')
+        AND status NOT IN ('FINISHED', 'CANCELLED')
+        AND DATE_ADD(match_date, INTERVAL 3 HOUR) > NOW()
       ORDER BY match_date ASC
     `, [teamId, teamId]);
 
@@ -68,9 +69,11 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
     const awayStats = {};
     const seasonStrengthMap = {};
     const nameMap = {};
+    const posMap = {};
     for (const t of standings) {
       seasonStrengthMap[t.team_id] = computeStrength(t);
       nameMap[t.team_id] = t.team_name;
+      posMap[t.team_id] = t.position;
       homeStats[t.team_id] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
       awayStats[t.team_id] = { played: 0, won: 0, drawn: 0, goals_for: 0, goals_against: 0 };
     }
@@ -125,6 +128,7 @@ app.get('/api/fixtures/:teamId', async (req, res) => {
       return {
         date: f.match_date,
         opponent: nameMap[oppId] || 'Unknown',
+        opp_position: posMap[oppId] || null,
         home_away: isHome ? 'H' : 'A',
         win_pct: winProb * 100,
         draw_pct: d * 100,
